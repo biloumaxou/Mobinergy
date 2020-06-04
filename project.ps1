@@ -8,6 +8,7 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser -ErrorAction Sile
 ##################
 # FUNCTION
 ##################
+pour Cedric
 function Connect {
     param ([Parameter(Mandatory=$true)][string] $URL, [Parameter(Mandatory=$true)][string] $Method, [Parameter(Mandatory=$true)][string] $APIVersion, [Parameter(Mandatory=$false)][HashTable] $mess)
     $URI = $Variables.APIurl + $URL
