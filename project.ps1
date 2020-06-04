@@ -76,3 +76,4 @@ $BasicCredentials = "Basic " + $Base64Auth
 $ContentTypeV1 = 'application/json; charset=utf-8'
 $ContentTypeV2 = 'application/json; version=2; charset=utf-8'
 $headers = @{"aw-tenant-code" = $Variables.TenantAPIkey; "Authorization"= $BasicCredentials}
+
