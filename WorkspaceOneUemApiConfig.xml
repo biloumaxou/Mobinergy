@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<WorkspaceOneUemApi_Config>
+<!--# LICENSE #
+    Workspace ONE UEM API - Provides a set of functions to perform common API call to Workspace ONE UEM. 
+    Copyright (C) 2020 - Maxime CROUZET.
+-->
+	<!--Configuration File Details-->
+	<Config_File>
+		<Config_Version>1.0</Config_Version>
+		<Config_Date>05/06/2020</Config_Date>
+	</Config_File>
+
+	<!--Wsone Options-->
+	<Wsone_Options>
+		<Wsone_LogPath>C:\Windows\Temp</Wsone_LogPath>
+		<!-- Log path used for Toolkit logging. -->
+		<Wsone_LogName>PoshWsoneUemApi</Wsone_LogName>
+		<!-- Log Name used for Toolkit logging. Do not add .log extension -->
+		<Wsone_LogMaxSize>10</Wsone_LogMaxSize>
+		<!-- Specify maximum file size limit for log file in megabytes (MB). -->
+		<Wsone_LogWriteToHost>True</Wsone_LogWriteToHost>
+		<!-- Specify if log messages should be written to the console. -->
+		<Wsone_DisableLogging>True</Wsone_DisableLogging>
+		<!-- Specify if log messages should be written to the log file. -->
+	</Wsone_Options>
+	<!--Wsone Options-->
+
+</WorkspaceOneUemApi_Config>
