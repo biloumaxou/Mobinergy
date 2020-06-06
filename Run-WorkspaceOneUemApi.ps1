@@ -68,8 +68,8 @@ Catch {
     }
 }
 #endregion
-
-Write-Log -Message "Failed to remove invalid characters from the supplied filename." -Severity 3
+[string]$installPhase = 'Test'
+Write-Log -Message "Pikachu" -Severity 1 -source $InvocationInfo.MyCommand -ScriptSection $installPhase
 
 <#
 ##################

@@ -12,15 +12,15 @@
 
 	<!--Wsone Options-->
 	<Wsone_Options>
-		<Wsone_LogPath>C:\Windows\Temp</Wsone_LogPath>
+		<Wsone_LogPath>C:\Temp\WSONE</Wsone_LogPath>
 		<!-- Log path used for Toolkit logging. -->
-		<Wsone_LogName>PoshWsoneUemApi</Wsone_LogName>
+		<Wsone_LogName>PoshWsoneUemApi.log</Wsone_LogName>
 		<!-- Log Name used for Toolkit logging. Do not add .log extension -->
 		<Wsone_LogMaxSize>10</Wsone_LogMaxSize>
 		<!-- Specify maximum file size limit for log file in megabytes (MB). -->
 		<Wsone_LogWriteToHost>True</Wsone_LogWriteToHost>
 		<!-- Specify if log messages should be written to the console. -->
-		<Wsone_DisableLogging>True</Wsone_DisableLogging>
+		<Wsone_DisableLogging>False</Wsone_DisableLogging>
 		<!-- Specify if log messages should be written to the log file. -->
 	</Wsone_Options>
 	<!--Wsone Options-->

@@ -25,21 +25,23 @@ Set-StrictMode -Version latest
 [string]$scriptRoot = Split-Path -Path $scriptPath -Parent
 
 ## Variables: App Deploy Script Dependency Files
-[string]$appDeployConfigFile = Join-Path -Path $scriptRoot -ChildPath 'AppDeployToolkitConfig.xml'
-If (-not (Test-Path -LiteralPath $appDeployConfigFile -PathType 'Leaf'))
+[string]$wsoneConfigFile = Join-Path -Path $scriptRoot -ChildPath 'WorkspaceOneUemApiConfig.xml'
+If (-not (Test-Path -LiteralPath $wsoneConfigFile -PathType 'Leaf'))
 {
-    Throw 'App Deploy XML configuration file not found.'
+    Throw 'Workspace ONE XML configuration file not found.'
 }
 
 ## Import variables from XML configuration file
-[Xml.XmlDocument]$xmlConfigFile = Get-Content -LiteralPath $AppDeployConfigFile
-[Xml.XmlElement]$xmlConfig = $xmlConfigFile.AppDeployWsone_Config
+[Xml.XmlDocument]$xmlConfigFile = Get-Content -LiteralPath $wsoneConfigFile
+[Xml.XmlElement]$xmlConfig = $xmlConfigFile.WorkspaceOneUemApi_Config
 
 #  Get Toolkit Options
-[Xml.XmlElement]$xmlToolkitOptions = $xmlConfig.Wsone_Options
-[string]$configToolkitLogDir = $ExecutionContext.InvokeCommand.ExpandString($xmlToolkitOptions.Wsone_LogPath)
-[string]$configToolkitLogDir = $ExecutionContext.InvokeCommand.ExpandString($xmlToolkitOptions.Wsone_LogName)
-[boolean]$configToolkitLogWriteToHost = [boolean]::Parse($xmlToolkitOptions.Wsone_LogWriteToHost)
+[Xml.XmlElement]$xmlWsoneOptions = $xmlConfig.Wsone_Options
+[string]$configWsoneLogDir = $ExecutionContext.InvokeCommand.ExpandString($xmlWsoneOptions.Wsone_LogPath)
+[string]$configWsoneLogName = $ExecutionContext.InvokeCommand.ExpandString($xmlWsoneOptions.Wsone_LogName)
+[boolean]$configWsoneLogWriteToHost = [boolean]::Parse($xmlWsoneOptions.Wsone_LogWriteToHost)
+[boolean]$configWsoneDisableLogging = [boolean]::Parse($xmlWsoneOptions.Wsone_DisableLogging)
+[double]$configWsoneLogMaxSize = $xmlWsoneOptions.Wsone_LogMaxSize
 
 
 #region Function Get-APICall
@@ -120,7 +122,7 @@ Function Write-Log {
     .PARAMETER WriteHost
         Write the log message to the console.
     .EXAMPLE
-        Write-Log -Message 'Error on calling API' -Severity 3 -Source 'Get-APICall'
+        Write-Log -Message 'Error on calling API' -Severity 3 -Source 'Get-APICall' -ScriptSection 'Initialization'
     .EXAMPLE
         Write-Log -Message 'Error on calling API' -Severity 3 -Source 'Get-APICall' -LogFileDirectory 'C:\Logs' -LogFileName 'APICall.log'
     .EXAMPLE
@@ -137,16 +139,22 @@ Function Write-Log {
         [int16]$Severity = 1,
         [Parameter(Mandatory=$false)]
         [ValidateNotNull()]
-        [string]$Source = '',
+        [string]$Source = 'Unknown',
         [Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
-        [string]$LogFileDirectory = $configToolkitLogDir,
+		[string]$ScriptSection = $script:installPhase,
         [Parameter(Mandatory=$false)]
 		[ValidateNotNullorEmpty()]
-		[string]$LogFileName = $configToolKitLogName,
+        [string]$LogFileDirectory = $configWsoneLogDir,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[string]$LogFileName = $configWsoneLogName,
+        [Parameter(Mandatory=$false)]
+		[ValidateNotNullorEmpty()]
+		[decimal]$MaxLogFileSizeMB = $configWsoneLogMaxSize,
         [Parameter(Mandatory=$false)]
         [ValidateNotNullorEmpty()]
-        [boolean]$WriteHost = $configToolkitLogWriteToHost
+        [boolean]$WriteHost = $configWsoneLogWriteToHost
     )
     
     Begin
@@ -156,13 +164,8 @@ Function Write-Log {
         
         ## Logging Variables
         #  Log file date/time
-        [string]$LogTime = (Get-Date -Format 'HH:mm:ss.fff').ToString()
+        [string]$LogTime = (Get-Date -Format 'HH\:mm\:ss.fff').ToString()
         [string]$LogDate = (Get-Date -Format 'MM-dd-yyyy').ToString()
-        If (-not (Test-Path -LiteralPath 'variable:LogTimeZoneBias'))
-        { 
-            [int32]$script:LogTimeZoneBias = [timezone]::CurrentTimeZone.GetUtcOffset([datetime]::Now).TotalMinutes
-        }
-        [string]$LogTimePlusBias = $LogTime + $script:LogTimeZoneBias
         #  Initialize variables
         [boolean]$ExitLoggingFunction = $false
         #  Check if the script section is defined
@@ -170,16 +173,17 @@ Function Write-Log {
         #  Get the file name of the source script
         Try
         {
-            If ($script:MyInvocation.Value.ScriptName)
+            If ($script:MyInvocation.ScriptName)
             {
-                [string]$ScriptSource = Split-Path -Path $script:MyInvocation.Value.ScriptName -Leaf -ErrorAction 'Stop'
+                [string]$ScriptSource = Split-Path -Path $script:MyInvocation.ScriptName -Leaf -ErrorAction 'Stop'
             }
             Else
             {
                 [string]$ScriptSource = Split-Path -Path $script:MyInvocation.MyCommand.Definition -Leaf -ErrorAction 'Stop'
             }
         }
-        Catch {
+        Catch
+        {
             $ScriptSource = ''
         }
         
@@ -207,105 +211,114 @@ Function Write-Log {
                 }
             }
         }
+
+        ## Exit function if logging to file is disabled and logging to console host is disabled
+        If (($configWsoneDisableLogging) -and (-not $WriteHost))
+        {
+            [boolean]$ExitLoggingFunction = $true
+            Return
+        }
+		## Exit Begin block if logging is disabled
+        If ($configWsoneDisableLogging)
+        {
+            Return
+        }
         
         ## Create the directory where the log file will be saved
-        [string]$LogFileDirectory = 'C:\Windows\Temp'
-        [string]$LogFileName = 'PWDWSONEUEMAPI.log'
         If (-not (Test-Path -LiteralPath $LogFileDirectory -PathType 'Container'))
         {
             Try
             {
-                $null = New-Item -Path $LogFileDirectory -Type 'Directory' -Force -ErrorAction 'Stop'
-            }
+				$null = New-Item -Path $LogFileDirectory -Type 'Directory' -Force -ErrorAction 'Stop'
+			}
             Catch
             {
-                [boolean]$ExitLoggingFunction = $true
-                Write-Host -Object "[$LogDate $LogTime] [${CmdletName}] :: Failed to create the log directory [$LogFileDirectory]." -ForegroundColor 'Red'
+				[boolean]$ExitLoggingFunction = $true
+				#  If error creating directory, write message to console
+                if($ScriptSectionDefined)
+                {
+                    Write-Host -Object "[$LogDate $LogTime] [${CmdletName}] $ScriptSection :: Failed to create the log directory [$LogFileDirectory]." -ForegroundColor 'Red'
+                }
+                else
+                {
+                    Write-Host -Object "[$LogDate $LogTime] [${CmdletName}] :: Failed to create the log directory [$LogFileDirectory]." -ForegroundColor 'Red'
+                }
                 Return
-            }
-        }
-        
-        ## Assemble the fully qualified path to the log file
-        [string]$LogFilePath = Join-Path -Path $LogFileDirectory -ChildPath $LogFileName
+			}
+		}
+
+		## Assemble the fully qualified path to the log file
+		[string]$LogFilePath = Join-Path -Path $LogFileDirectory -ChildPath $LogFileName
     }
-    Process {
+    Process
+    {
         ## Exit function if logging is disabled
         If ($ExitLoggingFunction)
         {
             Return
         }
         
-        ForEach ($Msg in $Message) {
-            ## If the message is not $null or empty, create the log entry for the different logging methods
-            [string]$CMTraceMsg = ''
-            [string]$ConsoleLogLine = ''
-            [string]$LegacyTextLogLine = ''
-            If ($Msg) {
-                #  Create the CMTrace log message
-                If ($ScriptSectionDefined)
-                {
-                    [string]$CMTraceMsg = "[$ScriptSection] :: $Msg"
-                }
-                
-                #  Create a Console and Legacy "text" log entry
-                [string]$LegacyMsg = "[$LogDate $LogTime]"
-                If ($ScriptSectionDefined)
-                {
-                    [string]$LegacyMsg += " [$ScriptSection]"
-                }
-                If ($Source)
-                {
-                    [string]$ConsoleLogLine = "$LegacyMsg [$Source] :: $Msg"
-                    Switch ($Severity)
-                    {
-                        3 { [string]$LegacyTextLogLine = "$LegacyMsg [$Source] [Error] :: $Msg" }
-                        2 { [string]$LegacyTextLogLine = "$LegacyMsg [$Source] [Warning] :: $Msg" }
-                        1 { [string]$LegacyTextLogLine = "$LegacyMsg [$Source] [Info] :: $Msg" }
-                    }
-                }
-                Else
-                {
-                    [string]$ConsoleLogLine = "$LegacyMsg :: $Msg"
-                    Switch ($Severity) {
-                        3 { [string]$LegacyTextLogLine = "$LegacyMsg [Error] :: $Msg" }
-                        2 { [string]$LegacyTextLogLine = "$LegacyMsg [Warning] :: $Msg" }
-                        1 { [string]$LegacyTextLogLine = "$LegacyMsg [Info] :: $Msg" }
-                    }
-                }
-            }
-            
-            ## Execute script block to create the CMTrace.exe compatible log entry
-            [string]$CMTraceLogLine = & $CMTraceLogString -lMessage $CMTraceMsg -lSource $Source -lSeverity $Severity
-            
-            ## Choose which log type to write to file
-            If ($LogType -ieq 'CMTrace')
+        ## If the message is not $null or empty, create the log entry for the different logging methods
+        [string]$ConsoleLogLine = ''
+        [string]$LegacyTextLogLine = ''
+        
+        #  Create a Console and Legacy "text" log entry
+        [string]$LegacyMsg = "[$LogDate $LogTime]"
+        If ($ScriptSectionDefined)
+        {
+            [string]$LegacyMsg += " [$ScriptSection]"
+        }
+        If ($Source)
+        {
+            [string]$ConsoleLogLine = "$LegacyMsg [$Source] :: $Message"
+            Switch ($Severity)
             {
-                [string]$LogLine = $CMTraceLogLine
+                3 { [string]$LegacyTextLogLine = "$LegacyMsg [$Source] [Error] :: $Message" }
+                2 { [string]$LegacyTextLogLine = "$LegacyMsg [$Source] [Warning] :: $Message" }
+                1 { [string]$LegacyTextLogLine = "$LegacyMsg [$Source] [Info] :: $Message" }
             }
-            Else
+        }
+        Else
+        {
+            [string]$ConsoleLogLine = "$LegacyMsg :: $Message"
+            Switch ($Severity)
             {
-                [string]$LogLine = $LegacyTextLogLine
+                3 { [string]$LegacyTextLogLine = "$LegacyMsg [Error] :: $Message" }
+                2 { [string]$LegacyTextLogLine = "$LegacyMsg [Warning] :: $Message" }
+                1 { [string]$LegacyTextLogLine = "$LegacyMsg [Info] :: $Message" }
             }
-            
-            ## Write the log entry to the log file
-            Try {
+        }
+        
+        [string]$LogLine = $LegacyTextLogLine
+        
+        ## Write the log entry to the log file if logging is not currently disabled
+        If (-not $configWsoneDisableLogging)
+        {
+            Try
+            {
                 $LogLine | Out-File -FilePath $LogFilePath -Append -NoClobber -Force -Encoding 'UTF8' -ErrorAction 'Stop'
             }
-            Catch {
-                If (-not $ContinueOnError)
+            Catch
+            {
+                If ($ScriptSectionDefined)
                 {
-                    Write-Host -Object "[$LogDate $LogTime] [$ScriptSection] [${CmdletName}] :: Failed to write message [$Msg] to the log file [$LogFilePath]. `n$(Resolve-Error)" -ForegroundColor 'Red'
+                    Write-Host -Object "[$LogDate $LogTime] [$ScriptSection] [${CmdletName}] :: Failed to write message [$Message] to the log file [$LogFilePath]." -ForegroundColor 'Red'
+                }
+                else {
+                    Write-Host -Object "[$LogDate $LogTime] [${CmdletName}] :: Failed to write message [$Message] to the log file [$LogFilePath]." -ForegroundColor 'Red'
                 }
             }
-            
-            ## Execute script block to write the log entry to the console if $WriteHost is $true
-            & $WriteLogLineToHost -lTextLogLine $ConsoleLogLine -lSeverity $Severity
         }
+        
+        ## Execute script block to write the log entry to the console if $WriteHost is $true
+        & $WriteLogLineToHost -lTextLogLine $ConsoleLogLine -lSeverity $Severity
     }
-    End {
-        ## Archive log file if size is greater than $MaxLogFileSizeMB and $MaxLogFileSizeMB > 0
-        Try {
-            If (-not $ExitLoggingFunction)
+    End
+    {
+        ## Archive log file if size is greater than $configWsoneLogMaxSize and $configWsoneLogMaxSize > 0
+        Try
+        {
+            If ((-not $ExitLoggingFunction) -and (-not $configWsoneDisableLogging))
             {
                 [IO.FileInfo]$LogFile = Get-ChildItem -LiteralPath $LogFilePath -ErrorAction 'Stop'
                 [decimal]$LogFileSizeMB = $LogFile.Length/1MB
@@ -313,26 +326,31 @@ Function Write-Log {
                 {
                     ## Change the file extension to "lo_"
                     [string]$ArchivedOutLogFile = [IO.Path]::ChangeExtension($LogFilePath, 'lo_')
-                    [hashtable]$ArchiveLogParams = @{ ScriptSection = $ScriptSection; Source = ${CmdletName}; Severity = 2; LogFileDirectory = $LogFileDirectory; LogFileName = $LogFileName; LogType = $LogType; MaxLogFileSizeMB = 0; WriteHost = $WriteHost; ContinueOnError = $ContinueOnError; PassThru = $false }
-                    
+                    If ($ScriptSectionDefined)
+                    {
+                        [hashtable]$ArchiveLogParams = @{ ScriptSection = $ScriptSection; Source = ${CmdletName}; Severity = 2; LogFileDirectory = $LogFileDirectory; LogFileName = $LogFileName; MaxLogFileSizeMB = 0; WriteHost = $WriteHost }
+                    }
+                    else
+                    {
+                        [hashtable]$ArchiveLogParams = @{ Source = ${CmdletName}; Severity = 2; LogFileDirectory = $LogFileDirectory; LogFileName = $LogFileName; MaxLogFileSizeMB = 0; WriteHost = $WriteHost }
+
+                    }
                     ## Log message about archiving the log file
-                    $ArchiveLogMessage = "Maximum log file size [$MaxLogFileSizeMB MB] reached. Rename log file to [$ArchivedOutLogFile]."
+                    $ArchiveLogMessage = "Maximum log file size [$configWsoneLogMaxSize MB] reached. Rename log file to [$ArchivedOutLogFile]."
                     Write-Log -Message $ArchiveLogMessage @ArchiveLogParams
                     
-                    ## Archive existing log file from <filename>.log to <filename>.lo_. Overwrites any existing <filename>.lo_ file. This is the same method SCCM uses for log files.
+                    ## Archive existing log file from <filename>.log to <filename>.lo_. Overwrites any existing <filename>.lo_ file.
                     Move-Item -LiteralPath $LogFilePath -Destination $ArchivedOutLogFile -Force -ErrorAction 'Stop'
                     
                     ## Start new log file and Log message about archiving the old log file
-                    $NewLogMessage = "Previous log file was renamed to [$ArchivedOutLogFile] because maximum log file size of [$MaxLogFileSizeMB MB] was reached."
+                    $NewLogMessage = "Previous log file was renamed to [$ArchivedOutLogFile] because maximum log file size of [$configWsoneLogMaxSize MB] was reached."
                     Write-Log -Message $NewLogMessage @ArchiveLogParams
                 }
             }
         }
-        Catch {
+        Catch
+        {
             ## If renaming of file fails, script will continue writing to log file even if size goes over the max file size
-        }
-        Finally {
-            If ($PassThru) { Write-Output -InputObject $Message }
         }
     }
 }
