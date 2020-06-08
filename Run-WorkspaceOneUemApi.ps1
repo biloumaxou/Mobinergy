@@ -69,7 +69,7 @@ Catch {
 }
 #endregion
 [string]$installPhase = 'Test'
-Write-Log -Message "Pikachu" -Severity 1 -source $InvocationInfo.MyCommand -ScriptSection $installPhase
+Write-Log -Message "glouglou" -Severity 1 -source $InvocationInfo.MyCommand -ScriptSection $installPhase
 
 <#
 ##################
