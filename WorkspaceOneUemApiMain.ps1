@@ -20,30 +20,64 @@
 #>
 Set-StrictMode -Version latest
 
-## Variables: Script Name and Script Paths
-[string]$scriptPath = $MyInvocation.MyCommand.Definition
-[string]$scriptRoot = Split-Path -Path $scriptPath -Parent
+#region Function Test-ConfigXmlFile
+Function Test-ConfigXmlFile {
+    <#
+    .SYNOPSIS
+        Test WorkspaceOneUemApiConfig variable format.
+    .DESCRIPTION
+        Test WorkspaceOneUemApiConfig variable in order to check different elements like empty variable or wrong format.
+    .EXAMPLE
+        Test-ConfigXmlFile
+    .LINK
+        https://www.mobinergy.com/en/contact
+    #>
+    ## Test if Configuration File has not been alterated
+    try{$xmlConfigFile.WorkspaceOneUemApi_Config}catch{throw "Your Workspace ONE XML configuration file has been alterated. <WorkspaceOneUemApi_Config> node does not exist"}
+    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_Options> node does not exist"}
+    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_LogPath> node does not exist"}
+    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogName}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_LogName> node does not exist"}
+    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogMaxSize}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_LogMaxSize> node does not exist"}
+    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogWriteToHost}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_LogWriteToHost> node does not exist"}
+    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_DisableLogging}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_DisableLogging> node does not exist"}
 
-## Variables: Workspace ONE UEM API Script Dependency Files
-[string]$wsoneConfigFile = Join-Path -Path $scriptRoot -ChildPath 'WorkspaceOneUemApiConfig.xml'
-If (-not (Test-Path -LiteralPath $wsoneConfigFile -PathType 'Leaf'))
-{
-    Throw 'Workspace ONE XML configuration file not found.'
+    ## Test if <Wsone_Options> child node has empty element
+    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath)){throw "<Wsone_LogPath> variable is empty in Workspace ONE XML configuration file."}
+    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogName)){throw "<Wsone_LogName> variable is empty in Workspace ONE XML configuration file."}
+    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogMaxSize)){throw "<Wsone_LogMaxSize> variable is empty in Workspace ONE XML configuration file."}
+    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogWriteToHost)){throw "<Wsone_LogWriteToHost> variable is empty in Workspace ONE XML configuration file."}
+    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_DisableLogging)){throw "<Wsone_DisableLogging> variable is empty in Workspace ONE XML configuration file."}
+
+    ## Test <Wsone_LogPath>
+    # Should have a correct base
+    $DN = ([string]($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath)).split("\")
+    if( -not (Test-Path $DN[0])){throw "<Wsone_LogPath> seems not having a correct Path name."}
+    # Should not finish with \
+    if (($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath).Substring(($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath).Length - 1) -eq '\')
+    {
+        $xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath = ($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath).Substring(0, ($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath).Length - 1)
+        try{$xmlConfigFile.Save($wsoneConfigFile)}catch{throw "Unable to save Workspace ONE XML configuration file after modifying <Wsone_LogPath> variable.`n$(Resolve-Error)"}
+    }
+
+    ## Test <Wsone_LogName> if extension exist and is .log
+    if([string]::IsNullOrEmpty([System.IO.Path]::GetExtension($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogName)))
+    {
+        $xmlWsoneOptions.Wsone_LogName = "$($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogName).log"
+        $xmlConfigFile.Save($wsoneConfigFile)
+    }
+    elseif ([System.IO.Path]::GetExtension($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogName) -ine '.log')
+    {
+        Throw '<Wsone_LogName> variable in Workspace ONE XML configuration file do not have a correct Extension. Must be .log'
+    }
+
+    ## Test <Wsone_LogWriteToHost> and <Wsone_DisableLogging> if set with True or False Value
+    if('true','False' -notcontains $xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogWriteToHost){Throw '<Wsone_LogWriteToHost> Value must be True or False'}
+    if('true','False' -notcontains $xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_DisableLogging){Throw '<Wsone_DisableLogging> Value must be True or False'}
+
+    ## Test <Wsone_LogWriteToHost> and <Wsone_DisableLogging> if set with True or False Value
+    if($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogMaxSize -notmatch "^\d+$"){Throw '<Wsone_LogMaxSize> Value must be a positive Number'}
 }
-
-## Import variables from XML configuration file
-[Xml.XmlDocument]$xmlConfigFile = Get-Content -LiteralPath $wsoneConfigFile
-Test-ConfigXmlFile
-[Xml.XmlElement]$xmlConfig = $xmlConfigFile.WorkspaceOneUemApi_Config
-
-#  Get Workspace ONE UEM API script Options
-[Xml.XmlElement]$xmlWsoneOptions = $xmlConfig.Wsone_Options
-[string]$configWsoneLogDir = $ExecutionContext.InvokeCommand.ExpandString($xmlWsoneOptions.Wsone_LogPath)
-[string]$configWsoneLogName = $ExecutionContext.InvokeCommand.ExpandString($xmlWsoneOptions.Wsone_LogName)
-[boolean]$configWsoneLogWriteToHost = [boolean]::Parse($xmlWsoneOptions.Wsone_LogWriteToHost)
-[boolean]$configWsoneDisableLogging = [boolean]::Parse($xmlWsoneOptions.Wsone_DisableLogging)
-[double]$configWsoneLogMaxSize = $xmlWsoneOptions.Wsone_LogMaxSize
-
+#endregion
 
 #region Function Get-APICall
 function Get-APICall {
@@ -97,65 +131,6 @@ function Get-APICall {
             }
         }
     }
-}
-#endregion
-
-#region Function Test-ConfigXmlFile
-Function Test-ConfigXmlFile {
-    <#
-    .SYNOPSIS
-        Test WorkspaceOneUemApiConfig variable format.
-    .DESCRIPTION
-        Test WorkspaceOneUemApiConfig variable in order to check different elements like empty variable or wrong format.
-    .EXAMPLE
-        Test-ConfigXmlFile
-    .LINK
-        https://www.mobinergy.com/en/contact
-    #>
-    ## Test if Configuration File has not been alterated
-    try{$xmlConfigFile.WorkspaceOneUemApi_Config}catch{throw "Your Workspace ONE XML configuration file has been alterated. <WorkspaceOneUemApi_Config> node does not exist"}
-    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_Options> node does not exist"}
-    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_LogPath> node does not exist"}
-    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogName}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_LogName> node does not exist"}
-    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogMaxSize}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_LogMaxSize> node does not exist"}
-    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogWriteToHost}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_LogWriteToHost> node does not exist"}
-    try{$xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_DisableLogging}catch{throw "Your Workspace ONE XML configuration file has been alterated. <Wsone_DisableLogging> node does not exist"}
-
-    ## Test if <Wsone_Options> child node has empty element
-    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath)){throw "<Wsone_LogPath> variable is empty in Workspace ONE XML configuration file."}
-    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogName)){throw "<Wsone_LogName> variable is empty in Workspace ONE XML configuration file."}
-    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogMaxSize)){throw "<Wsone_LogMaxSize> variable is empty in Workspace ONE XML configuration file."}
-    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogWriteToHost)){throw "<Wsone_LogWriteToHost> variable is empty in Workspace ONE XML configuration file."}
-    if([string]::IsNullOrEmpty($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_DisableLogging)){throw "<Wsone_DisableLogging> variable is empty in Workspace ONE XML configuration file."}
-
-    ## Test <Wsone_LogPath>
-    # Should have a correct base
-    $DN = ([string]($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath)).split("\")
-    if( -not (Test-Path $DN[0])){throw "<Wsone_LogPath> seems not having a correct Path name."}
-    # Should not finish with \
-    if (($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath).Substring(($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath).Length - 1) -eq '\')
-    {
-        $xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath = ($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath).Substring(0, ($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogPath).Length - 1)
-        try{$xmlConfigFile.Save($wsoneConfigFile)}catch{throw "Unable to save Workspace ONE XML configuration file after modifying <Wsone_LogPath> variable.`n$(Resolve-Error)"}
-    }
-
-    ## Test <Wsone_LogName> if extension exist and is .log
-    if([string]::IsNullOrEmpty([System.IO.Path]::GetExtension($configWsoneLogName)))
-    {
-        $xmlWsoneOptions.Wsone_LogName = "$($configWsoneLogName).log"
-        $xmlConfigFile.Save($wsoneConfigFile)
-    }
-    elseif ([System.IO.Path]::GetExtension($configWsoneLogName) -ine '.log')
-    {
-        Throw '<Wsone_LogName> variable in Workspace ONE XML configuration file do not have a correct Extension. Must be .log'
-    }
-
-    ## Test <Wsone_LogWriteToHost> and <Wsone_DisableLogging> if set with True or False Value
-    if($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogWriteToHost -notcontains @('True','False')){Throw '<Wsone_LogWriteToHost> Value must be True or False'}
-    if($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_DisableLogging -notcontains @('True','False')){Throw '<Wsone_DisableLogging> Value must be True or False'}
-
-    ## Test <Wsone_LogWriteToHost> and <Wsone_DisableLogging> if set with True or False Value
-    if($xmlConfigFile.WorkspaceOneUemApi_Config.Wsone_Options.Wsone_LogMaxSize -notmatch "^\d+$"){Throw '<Wsone_LogMaxSize> Value must be a positive Number'}
 }
 #endregion
 
@@ -596,3 +571,27 @@ Function Resolve-Error {
         }
     }
     #endregion
+
+## Variables: Script Name and Script Paths
+[string]$scriptPath = $MyInvocation.MyCommand.Definition
+[string]$scriptRoot = Split-Path -Path $scriptPath -Parent
+
+## Variables: Workspace ONE UEM API Script Dependency Files
+[string]$wsoneConfigFile = Join-Path -Path $scriptRoot -ChildPath 'WorkspaceOneUemApiConfig.xml'
+If (-not (Test-Path -LiteralPath $wsoneConfigFile -PathType 'Leaf'))
+{
+    Throw 'Workspace ONE XML configuration file not found.'
+}
+
+## Import variables from XML configuration file
+[Xml.XmlDocument]$xmlConfigFile = Get-Content -LiteralPath $wsoneConfigFile
+$null = Test-ConfigXmlFile
+[Xml.XmlElement]$xmlConfig = $xmlConfigFile.WorkspaceOneUemApi_Config
+
+#  Get Workspace ONE UEM API script Options
+[Xml.XmlElement]$xmlWsoneOptions = $xmlConfig.Wsone_Options
+[string]$configWsoneLogDir = $ExecutionContext.InvokeCommand.ExpandString($xmlWsoneOptions.Wsone_LogPath)
+[string]$configWsoneLogName = $ExecutionContext.InvokeCommand.ExpandString($xmlWsoneOptions.Wsone_LogName)
+[boolean]$configWsoneLogWriteToHost = [boolean]::Parse($xmlWsoneOptions.Wsone_LogWriteToHost)
+[boolean]$configWsoneDisableLogging = [boolean]::Parse($xmlWsoneOptions.Wsone_DisableLogging)
+[double]$configWsoneLogMaxSize = $xmlWsoneOptions.Wsone_LogMaxSize
