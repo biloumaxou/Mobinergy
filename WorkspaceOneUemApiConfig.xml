@@ -15,7 +15,7 @@
     <!-- Log path used for Toolkit logging. -->
     <Wsone_LogName>PoshWsoneUemApi.log</Wsone_LogName>
     <!-- Log Name used for Toolkit logging. Do not add .log extension -->
-    <Wsone_LogMaxSize>10</Wsone_LogMaxSize>
+    <Wsone_LogMaxSize>20</Wsone_LogMaxSize>
     <!-- Specify maximum file size limit for log file in megabytes (MB). -->
     <Wsone_LogWriteToHost>True</Wsone_LogWriteToHost>
     <!-- Specify if log messages should be written to the console. -->
